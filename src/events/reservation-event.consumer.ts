@@ -15,7 +15,7 @@ import type { EmailLedger } from '../notifications/email-ledger.js'
 import { EMAIL_SENDER } from '../notifications/email-sender.js'
 import type { EmailSender } from '../notifications/email-sender.js'
 
-interface Counters {
+export interface Counters {
   received: number
   deduplicated: number
   stale: number

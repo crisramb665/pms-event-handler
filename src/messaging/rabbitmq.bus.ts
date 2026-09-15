@@ -12,6 +12,7 @@ import {
   MessageHandler,
   NonRetryableError,
 } from './message-bus.port.js'
+import { retryDelaysFromConfig } from './retry-delays.js'
 
 // Topology names and routing key straight out of SPEC.md §6 — kept as constants,
 // not config, because they are part of the contract, not deployment-specific.
@@ -22,12 +23,19 @@ const DLX = 'reservations.dlx'
 const QUEUE_DLQ = 'reservations.dlq'
 const HEADER_ATTEMPT = 'x-attempt'
 
-// Capped at 3 attempts total (1 direct + 2 retries), matching §5's failure handling.
-const MAX_ATTEMPTS = 3
-const RETRY_TIERS = [
-  { queue: 'reservations.retry.5s', ttlMs: 5_000 },
-  { queue: 'reservations.retry.30s', ttlMs: 30_000 },
-] as const
+interface RetryTier {
+  queue: string
+  ttlMs: number
+}
+
+// The queue name carries its TTL (reservations.retry.5s / .30s with the defaults, exactly
+// as in §6). RabbitMQ refuses to redeclare an existing queue with different arguments
+// (PRECONDITION_FAILED), so a changed RETRY_DELAYS_MS gets fresh queues instead of a
+// boot failure against a broker that still has the old ones.
+function retryTier(ttlMs: number): RetryTier {
+  const label = ttlMs % 1000 === 0 ? `${ttlMs / 1000}s` : `${ttlMs}ms`
+  return { queue: `reservations.retry.${label}`, ttlMs }
+}
 
 /**
  * RabbitMQ adapter for MessageBus, built directly on amqp-connection-manager +
@@ -53,7 +61,16 @@ export class RabbitMqBus implements MessageBus, OnModuleInit, OnApplicationShutd
     deadLettered: 0,
   }
 
-  constructor(private readonly config: ConfigService) {}
+  private readonly retryTiers: RetryTier[]
+
+  constructor(private readonly config: ConfigService) {
+    this.retryTiers = retryDelaysFromConfig(config).map(retryTier)
+  }
+
+  /** Attempts = tiers + 1: 3 with the default two tiers, matching §5. Same derivation as InMemoryBus. */
+  private get maxAttempts(): number {
+    return this.retryTiers.length + 1
+  }
 
   async onModuleInit(): Promise<void> {
     // Default vhost is "/reservations" per docker-compose.yml — the leading slash is
@@ -97,7 +114,7 @@ export class RabbitMqBus implements MessageBus, OnModuleInit, OnApplicationShutd
 
     // TTL is set per queue, never per message: a queue with heterogeneous per-message
     // TTLs only expires from the head, so a 30s message would block the 5s ones behind it.
-    for (const tier of RETRY_TIERS) {
+    for (const tier of this.retryTiers) {
       await channel.assertQueue(tier.queue, {
         durable: true,
         arguments: {
@@ -194,12 +211,12 @@ export class RabbitMqBus implements MessageBus, OnModuleInit, OnApplicationShutd
       return
     }
 
-    if (attempt >= MAX_ATTEMPTS) {
+    if (attempt >= this.maxAttempts) {
       await this.deadLetter(msg, attempt, `attempts exhausted: ${reason}`)
       return
     }
 
-    const tier = RETRY_TIERS[attempt - 1]
+    const tier = this.retryTiers[attempt - 1]
     this.logger.warn(
       `retry scheduled delivery=${String(msg.properties.messageId)} attempt=${attempt} tier=${tier.queue} reason=${reason}`,
     )

@@ -19,7 +19,8 @@
     "test:cov": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "test:debug": "NODE_OPTIONS=--experimental-vm-modules node --inspect-brk node_modules/.bin/jest --runInBand",
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json",
-    "reset:queues": "docker compose restart rabbitmq"
+    "reset:queues": "docker compose restart rabbitmq",
+    "simulate": "pnpm build && node dist/simulator/main.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
