@@ -1,0 +1,15 @@
+# docker-compose.yml
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: pentice-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # management UI — guest/guest
+    environment:
+      RABBITMQ_DEFAULT_VHOST: /reservations
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
