@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnApplicationShutdown,
-  OnModuleInit,
-} from '@nestjs/common'
+import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { randomUUID } from 'node:crypto'
 import { connect } from 'amqp-connection-manager'
@@ -63,10 +58,7 @@ export class RabbitMqBus implements MessageBus, OnModuleInit, OnApplicationShutd
   async onModuleInit(): Promise<void> {
     // Default vhost is "/reservations" per docker-compose.yml — the leading slash is
     // part of the vhost name, so it must be percent-encoded again in the URI path.
-    const url = this.config.get<string>(
-      'RABBITMQ_URL',
-      'amqp://guest:guest@localhost:5672/%2Freservations',
-    )
+    const url = this.config.get<string>('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672/%2Freservations')
 
     this.connection = connect(url, { heartbeatIntervalInSeconds: 5 })
     this.connection.on('connect', () => this.logger.log('connected to RabbitMQ'))
@@ -130,9 +122,8 @@ export class RabbitMqBus implements MessageBus, OnModuleInit, OnApplicationShutd
 
   /** Single subscriber by design: FIFO per queue only holds with one consumer. */
   async subscribe<T>(handler: MessageHandler<T>): Promise<void> {
-    if (this.handler) {
-      throw new Error('RabbitMqBus supports a single subscriber (FIFO guarantee).')
-    }
+    if (this.handler) throw new Error('RabbitMqBus supports a single subscriber (FIFO guarantee).')
+
     this.handler = handler
 
     await this.channelWrapper.consume(QUEUE_EVENTS, this.consumeMessage, {

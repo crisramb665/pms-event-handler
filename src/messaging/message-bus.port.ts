@@ -9,6 +9,13 @@
  * is unavailable.
  */
 
+import { NonRetryableError } from '../events/reservation-event.js'
+
+// Re-exported, not redefined: the retryable/non-retryable classification is a domain
+// judgement (events/reservation-event.ts), and both bus adapters just react to it. Keeping
+// a single class means `instanceof NonRetryableError` still works across every importer.
+export { NonRetryableError }
+
 export const MESSAGE_BUS = Symbol('MESSAGE_BUS')
 
 /** A message as handed to the consumer. */
@@ -23,21 +30,6 @@ export interface InboundMessage<T = unknown> {
 }
 
 export type MessageHandler<T = unknown> = (msg: InboundMessage<T>) => Promise<void>
-
-/**
- * Thrown by the handler when the failure is deterministic (malformed envelope, unknown
- * event type). Retrying a poison message is a busy loop, so it skips the retry chain
- * and is dead-lettered immediately.
- */
-export class NonRetryableError extends Error {
-  constructor(
-    message: string,
-    readonly cause?: unknown,
-  ) {
-    super(message)
-    this.name = 'NonRetryableError'
-  }
-}
 
 export interface DeadLetter {
   deliveryId: string
