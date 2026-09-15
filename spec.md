@@ -128,7 +128,16 @@ These are the deliverable. Each maps 1:1 to a test.
 | **I2** | An event whose ordering key is `<=` the one already applied does not mutate state. |
 | **I3** | At most one confirmation email exists per reservation, under duplicates, reordering, and sender retries. |
 | **I4** | An event that fails persistently lands in the DLQ without blocking the queue or corrupting state. |
-| **I5** | Final state is independent of arrival order: any permutation of the same event set converges to the same result. |
+| **I5** | does not extend to effects, by design.** The email fires on an *observed* transition
+into CONFIRMED. If the confirming event arrives after a later event has already advanced
+the ordering key, the ordering guard drops it as stale and the crossing is never observed
+— so a permutation can legitimately produce zero emails where another produces one.
+
+State still converges in every permutation. Extending the guarantee to effects would
+require either deriving effects from final state (which needs a grace window, i.e.
+latency) or replaying the full event history per reservation (event sourcing, out of
+scope §7). The invariant we hold is: **at most one confirmation email per reservation,
+never two.** Tests assert `emails <= 1`, not `emails === 1`.
 
 I5 is the strongest of the five and the cheapest to test — permute the feed and assert
 convergence.
