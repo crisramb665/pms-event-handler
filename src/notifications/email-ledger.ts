@@ -24,12 +24,22 @@ export type EmailLedgerState = 'reserved' | 'sent'
 //  * In production the entry would carry a TTL and a reconciliation job would sweep stale
 //  * reservations, turning "explicit recovery" into "eventual recovery" without weakening
 //  * the guarantee. Out of scope here (README, "scaling to production").
+export const EMAIL_LEDGER = Symbol('EMAIL_LEDGER')
+
 export interface EmailLedger {
   /** True if this call reserved the intent; false if one already existed (reserved or
    *  sent) — in that case the caller must not send. */
   reserve(reservationId: string): Promise<boolean>
   markSent(reservationId: string): Promise<void>
   getState(reservationId: string): Promise<EmailLedgerState | undefined>
+  /**
+   * Explicit, caller-driven recovery for one specific case: reserve() succeeded and
+   * send() then failed *within the same still-running process* (not a crash — the
+   * orchestrator is right here to react). Deletes the entry only if it is still
+   * 'reserved', never if it is 'sent' — a send that already succeeded must never be
+   * undone, or a retry of the triggering event would send a second email.
+   */
+  release(reservationId: string): Promise<void>
   /** Entries stuck in 'reserved' — a crash between reserve and send. Exposed so a missing
    *  email is observable rather than silent. */
   pendingReservations(): Promise<string[]>
@@ -46,6 +56,12 @@ export class InMemoryEmailLedger implements EmailLedger {
 
   async markSent(reservationId: string): Promise<void> {
     this.entries.set(reservationId, 'sent')
+  }
+
+  async release(reservationId: string): Promise<void> {
+    if (this.entries.get(reservationId) === 'reserved') {
+      this.entries.delete(reservationId)
+    }
   }
 
   async getState(reservationId: string): Promise<EmailLedgerState | undefined> {

@@ -4,6 +4,8 @@ import { Reservation } from './reservation.js'
  * Purpose-built to Reservation, not a generic `Repository<T>` — CLAUDE.md rules out
  * generic-repository scaffolding, and there is exactly one aggregate here.
  */
+export const RESERVATION_REPOSITORY = Symbol('RESERVATION_REPOSITORY')
+
 export interface ReservationRepository {
   findById(reservationId: string): Promise<Reservation | null>
   save(reservation: Reservation): Promise<void>

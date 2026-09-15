@@ -4,6 +4,8 @@
  * the ordering guard (ordering-key.ts): this catches literal redelivery of the same event,
  * the ordering guard catches distinct-but-stale events.
  */
+export const PROCESSED_EVENTS_STORE = Symbol('PROCESSED_EVENTS_STORE')
+
 export interface ProcessedEventsStore {
   has(eventId: string): Promise<boolean>
   markProcessed(eventId: string): Promise<void>
